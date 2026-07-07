@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viranşehir Deneme Kulübü</title>
+    <style>
+        .gizli { display: none !important; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; background-color: #f0f2f5; color: #333; }
+        .container { max-width: 500px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; text-align: center; }
+        .logo { font-size: 60px; margin-bottom: 10px; }
+        h1 { font-size: 24px; color: #0056b3; margin-bottom: 5px; }
+        h2 { font-size: 16px; color: #d9534f; margin-bottom: 25px; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
+        button { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:hover { background-color: #218838; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; color: #444; }
+        .okul-bilgi { background-color: #d4edda; padding: 12px; border-radius: 6px; color: #155724; font-weight: bold; margin-bottom: 25px; font-size: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="logo">📚</div>
+    <h1>VİRANŞEHİR DENEME KULÜBÜ</h1>
+    <h2 id="canliSinavYazisi">Yükleniyor...</h2>
+
+    <div id="girisAlani">
+        <input type="text" placeholder="Kurum Kodu Veya 'admin'" id="kullanici">
+        <input type="password" placeholder="Şifre" id="sifre">
+        <button id="girisYapBtn">Sisteme Giriş Yap</button>
+    </div>
+
+    <div id="veriGirisPaneli" class="gizli">
+        <div class="okul-bilgi" id="aktifOkulYazisi"></div>
+        <form id="veriFormu">
+            <div class="form-group"><label>Okulunuzun Tam Adı:</label><input type="text" id="okulAdiInput" required placeholder="Örn: Viranşehir Atatürk Ortaokulu"></div>
+            <div class="form-group"><label>Sorumlu Öğretmen:</label><input type="text" id="ogretmen" required placeholder="Ad Soyad"></div>
+            <div class="form-group"><label>İletişim Telefonu:</label><input type="text" id="telefon" required placeholder="05xx"></div>
+            <div class="form-group"><label>5. Sınıf Deneme Sayısı:</label><input type="number" id="sinif5" value="0" min="0"></div>
+            <div class="form-group"><label>6. Sınıf Deneme Sayısı:</label><input type="number" id="sinif6" value="0" min="0"></div>
+            <div class="form-group"><label>7. Sınıf Deneme Sayısı:</label><input type="number" id="sinif7" value="0" min="0"></div>
+            <div class="form-group"><label>8. Sınıf Deneme Sayısı:</label><input type="number" id="sinif8" value="0" min="0"></div>
+            <button type="submit" style="background-color: #ffc107; color: black;">Sayıları Kaydet / Güncelle 🚀</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let aktifKurumKodu = "";
+    let hafizadakiOkulAdi = "";
+
+    async function sinavBilgisiAl() {
+        try {
+            const res = await fetch("/getir-ayarlar");
+            const ayar = await res.json();
+            document.getElementById("canliSinavYazisi").innerText = ayar.sinavAdi + (ayar.tarih ? " (" + ayar.tarih + ")" : "");
+        } catch(e) { document.getElementById("canliSinavYazisi").innerText = "Sistem Aktif"; }
+    }
+    sinavBilgisiAl();
+
+    document.getElementById("girisYapBtn").addEventListener("click", async () => {
+        const kurumKodu = document.getElementById("kullanici").value;
+        const sifre = document.getElementById("sifre").value;
+
+        try {
+            const response = await fetch("/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ kurumKodu, sifre })
+            });
+            const sonuc = await response.json();
+
+            if (response.ok && sonuc.basarili) {
+                if (sonuc.rol === "admin") {
+                    localStorage.setItem("adminGiris", "true");
+                    window.location.href = "/admin.html";
+                } else {
+                    aktifKurumKodu = sonuc.kurumKodu;
+                    hafizadakiOkulAdi = sonuc.okulAdi;
+                    document.getElementById("girisAlani").classList.add("gizli");
+                    document.getElementById("aktifOkulYazisi").innerText = "Kurum Kodu: " + aktifKurumKodu;
+                    if(!hafizadakiOkulAdi.startsWith("Kurum No:")) {
+                        document.getElementById("okulAdiInput").value = hafizadakiOkulAdi;
+                    }
+                    document.getElementById("veriGirisPaneli").classList.remove("gizli");
+                }
+            } else { alert(sonuc.hata); }
+        } catch (e) { alert("Bağlantı hatası veya sistem kapalı!"); }
+    });
+
+    document.getElementById("veriFormu").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const veriPaketi = {
+            kurumKodu: aktifKurumKodu, okulAdi: document.getElementById("okulAdiInput").value,
+            ogretmen: document.getElementById("ogretmen").value, telefon: document.getElementById("telefon").value,
+            sinif5: parseInt(document.getElementById("sinif5").value) || 0, sinif6: parseInt(document.getElementById("sinif6").value) || 0,
+            sinif7: parseInt(document.getElementById("sinif7").value) || 0, sinif8: parseInt(document.getElementById("sinif8").value) || 0
+        };
+        try {
+            const response = await fetch("/kaydet", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(veriPaketi)
+            });
+            const sonuc = await response.json();
+            alert(sonuc.mesaj);
+        } catch (e) { alert("Hata oluştu!"); }
+    });
+</script>
+</body>
+</html>

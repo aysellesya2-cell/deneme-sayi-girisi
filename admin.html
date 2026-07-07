@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetici İzleme Paneli</title>
+    <script>
+        if (localStorage.getItem("adminGiris") !== "true") {
+            alert("Yetkiniz yok!"); window.location.href = "/";
+        }
+    </script>
+    <style>
+        body { font-family: sans-serif; margin: 40px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 1100px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); margin: 0 auto; }
+        h1 { text-align: center; color: #1a1a1a; margin-bottom: 25px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .ayar-kutusu { background-color: #fff3cd; border: 2px dashed #ffc107; padding: 20px; border-radius: 8px; margin-bottom: 25px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; }
+        .ayar-kutusu label { font-weight: bold; }
+        .ayar-kutusu input, .ayar-kutusu select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        .ozet-alanı { display: flex; gap: 20px; margin-bottom: 20px; }
+        .kart { flex: 1; background: #e2f0d9; padding: 15px; border-radius: 6px; text-align: center; font-weight: bold; color: #385723; font-size: 16px; }
+        .btn-grup { float: right; margin-bottom: 15px; }
+        .btn { padding: 11px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; margin-left: 10px; }
+        .btn-excel { background-color: #1f7244; color: white; }
+        .btn-kaydet { background-color: #ffc107; color: black; }
+        .btn-cikis { background-color: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>VİRANŞEHİR DENEME KULÜBÜ YÖNETİCİ PANELİ</h1>
+
+    <div class="ayar-kutusu">
+        <label>Sınav Adı:</label>
+        <input type="text" id="sinavAdiInput" style="width: 250px;" placeholder="Örn: 2. Deneme Sınavı">
+        
+        <label>Sınav Tarihi:</label>
+        <input type="text" id="tarihInput" placeholder="Örn: 25 Kasım">
+
+        <label>Sistemin Durumu:</label>
+        <select id="durumSelect">
+            <option value="ACIK">AÇIK (Okullar veri girebilir)</option>
+            <option value="KAPALI">KAPALI (Veri girişi engellensin)</option>
+        </select>
+
+        <button class="btn btn-kaydet" onclick="ayarlariKaydet()">Ayarları Uygula 🔒</button>
+    </div>
+
+    <div class="ozet-alanı">
+        <div class="kart" id="toplamOkul">Kayıt Yapan Okul: 0</div>
+        <div class="kart" id="toplamOgrenci" style="background-color: #dee2e6; color: #212529;">Toplam Basılacak Deneme: 0</div>
+    </div>
+
+    <div class="btn-grup">
+        <button class="btn btn-excel" onclick="window.location.href='/excel-indir'">Kırtasiye İçin Excel İndir 🟩</button>
+        <button class="btn btn-cikis" onclick="cikisYap()">Güvenli Çıkış ❌</button>
+    </div>
+    <div style="clear: both;"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Kurum Kodu</th>
+                <th>Okul Adı</th>
+                <th>Öğretmen</th>
+                <th>Telefon</th>
+                <th>5. Sınıf</th>
+                <th>6. Sınıf</th>
+                <th>7. Sınıf</th>
+                <th>8. Sınıf</th>
+                <th>Okul Toplamı</th>
+            </tr>
+        </thead>
+        <tbody id="tabloGövde"></tbody>
+    </table>
+</div>
+
+<script>
+    async function ayarlariGetir() {
+        try {
+            const res = await fetch("/getir-ayarlar");
+            const ayar = await res.json();
+            document.getElementById("sinavAdiInput").value = ayar.sinavAdi;
+            document.getElementById("tarihInput").value = ayar.tarih;
+            document.getElementById("durumSelect").value = ayar.durum;
+        } catch(e) {}
+    }
+
+    async function ayarlariKaydet() {
+        const veri = {
+            sinavAdi: document.getElementById("sinavAdiInput").value,
+            tarih: document.getElementById("tarihInput").value,
+            durum: document.getElementById("durumSelect").value
+        };
+        try {
+            const res = await fetch("/guncelle-ayarlar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(veri)
+            });
+            const sonuc = await res.json();
+            alert(sonuc.mesaj);
+            verileriYükle();
+        } catch(e) { alert("Hata!"); }
+    }
+
+    async function verileriYükle() {
+        try {
+            const response = await fetch("/tum-veriler");
+            const okullar = await response.json();
+            const govde = document.getElementById("tabloGövde");
+            govde.innerHTML = "";
+
+            let toplamSiparis = 0;
+            okullar.forEach(o => {
+                const okulTop = o.sinif5 + o.sinif6 + o.sinif7 + o.sinif8;
+                toplamSiparis += okulTop;
+                govde.innerHTML += `<tr><td>${o.kurumKodu}</td><td>${o.okulAdi}</td><td>${o.ogretmen}</td><td>${o.telefon}</td><td>${o.sinif5}</td><td>${o.sinif6}</td><td>${o.sinif7}</td><td>${o.sinif8}</td><td style="font-weight:bold; color:#0056b3;">${okulTop}</td></tr>`;
+            });
+
+            document.getElementById("toplamOkul").innerText = "Kayıt Yapan Okul: " + okullar.length;
+            document.getElementById("toplamOgrenci").innerText = "Toplam Basılacak Deneme: " + toplamSiparis + " Adet";
+        } catch (e) {}
+    }
+
+    function cikisYap() { localStorage.removeItem("adminGiris"); window.location.href = "/"; }
+
+    ayarlariGetir();
+    verileriYükle();
+</script>
+</body>
+</html>
